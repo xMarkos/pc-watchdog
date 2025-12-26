@@ -92,3 +92,7 @@ try:
 except KeyboardInterrupt:
 	# Important: this does not handle SIGKILL, so we need to make sure that systemd terminates the program with SIGINT
 	write_byte(0)
+finally:
+	time.sleep(1)
+	if len(value := read()):
+		print(value, flush=True)
