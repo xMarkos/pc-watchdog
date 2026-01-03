@@ -3,10 +3,10 @@
 
 /* Blink code:
 *  1 short: received a pulse
-*  2 short: device is in starting mode (no reset configured)
+*  2 short: device is in starting mode (no reset configured or the driver sent pulse=0)
 *  3 short: device booted
 *  1 sec long blinks: timed-out - device is in grace period, restart can be averted
-*  300ms long blinks: restart is imminent
+*  2 secs of short blinks with max brightness: triggering restart
 */
 
 #define VERSION "2.0"
@@ -17,33 +17,52 @@ const int PIN_RESET = 0;
 const int BLINK_LEN_SHORT = 50;
 const int BLINK_LEN_MEDIUM = 300;
 const int BLINK_LEN_LONG = 1000;
-const unsigned long RESET_TIMEOUT_GRACE_PERIOD = 10000;
-const unsigned long RESET_TIMEOUT_PING_MULTIPLIER = 1000;
+const unsigned long RESET_TIMEOUT_GRACE_PERIOD_MULTIPLIER = 1000;
+const unsigned long RESET_TIMEOUT_PULSE_MULTIPLIER = 1000;
 
-char ping_received = 0;
-unsigned long last_ping = 0;
-unsigned long configured_reset_timeout = 0;
+char pulse_received = 0;
+unsigned long last_pulse_at_ms = 0;
+unsigned long configured_reset_timeout_ms = 0;
+unsigned long reset_timeout_grace_period_ms = 10000;
 int led_intensity = 1;
 
 // USB Vendor requests
-#define USBRQ_PING						1
-#define USBRQ_SET_BRIGHTNESS	2
+#define USBRQ_PULSE						1
+#define USBRQ_SET_CONFVAR			2
 
-void blink(int length, int count = 1);
+// Configuration variable indexes for USBRQ_SET_CONFVAR
+#define CONFVAR_BRIGHTNESS		1
+#define CONFVAR_GRACE_PERIOD	2
+
+void blink(int length, int count = 1, int brightness = -1);
+
+inline uchar setConfVar(unsigned int confvar, unsigned int value, unsigned int length) {
+	switch (confvar) {
+		case CONFVAR_BRIGHTNESS:
+			led_intensity = (value > 0xff) ? 0xff : (int)value;
+			break;
+		case CONFVAR_GRACE_PERIOD:
+			reset_timeout_grace_period_ms = value * RESET_TIMEOUT_GRACE_PERIOD_MULTIPLIER;
+			break;
+		default:
+			DigiUSB.printf(F("Unknown CONFVAR %d\n"), confvar);
+			break;
+	}
+	
+	return 1;
+}
 
 uchar handleVendorRequest(uchar request, usbWord_t wValue, usbWord_t wIndex, usbWord_t wLength) {
 	// Uncomment for debugging received commands
 	// DigiUSB.printf(F("Vendor request: request=%d, value= %d, index= %d, length= %d\n"), request);
 	
 	switch (request) {
-		case USBRQ_PING:
-			ping_received = 1;
-			configured_reset_timeout = wValue.word * RESET_TIMEOUT_PING_MULTIPLIER;
+		case USBRQ_PULSE:
+			pulse_received = 1;
+			configured_reset_timeout_ms = wValue.word * RESET_TIMEOUT_PULSE_MULTIPLIER;
 			break;
-		case USBRQ_SET_BRIGHTNESS:
-			led_intensity = wValue.word;
-			DigiUSB.printf(F("Brightness= %d\n"), led_intensity);
-			break;
+		case USBRQ_SET_CONFVAR:
+			return setConfVar(wIndex.word, wValue.word, wLength.word);
 		default:
 			DigiUSB.printf(F("Unknown: request=%d, value= %d, index= %d, length= %d\n"), request);
 			break;
@@ -68,12 +87,12 @@ void loop() {
 	wdt_reset();
 	unsigned long now = millis();
 
-	// ping_received can change anytime usbPoll() is called, i.e. when DigiUSB.refresh() or DigiUSB.delay(int) is called.
-	if (ping_received) {
-		ping_received = 0;
-		last_ping = now;
+	// pulse_received can change anytime usbPoll() is called, i.e. when DigiUSB.refresh() or DigiUSB.delay(int) is called.
+	if (pulse_received) {
+		pulse_received = 0;
+		last_pulse_at_ms = now;
 		
-		if (configured_reset_timeout == 0) {
+		if (configured_reset_timeout_ms == 0) {
 			DigiUSB.print('0');
 		} else {
 			DigiUSB.print('.');
@@ -87,16 +106,16 @@ void loop() {
 	//	int value = DigiUSB.read();
 	//}
 
-	if (configured_reset_timeout == 0) {
+	if (configured_reset_timeout_ms == 0) {
 		blink(BLINK_LEN_SHORT, 2);
 	} else {
-		unsigned long delta = now - last_ping;
+		unsigned long delta = now - last_pulse_at_ms;
 
-		if (delta > configured_reset_timeout + RESET_TIMEOUT_GRACE_PERIOD) {
+		if (delta > configured_reset_timeout_ms + reset_timeout_grace_period_ms) {
 			DigiUSB.print('#');
-			blink(BLINK_LEN_MEDIUM, 7);
+			blink(BLINK_LEN_SHORT, 2000 / (2 * BLINK_LEN_SHORT), 0xff);
 			trigger_reset();
-		} else if (delta > configured_reset_timeout) {
+		} else if (delta > configured_reset_timeout_ms) {
 			DigiUSB.print('!');
 			blink(BLINK_LEN_LONG);
 		}
@@ -105,10 +124,13 @@ void loop() {
 	DigiUSB.delay(1000);
 }
 
-void blink(int length, int count) {
+void blink(int length, int count, int brightness) {
+	if (brightness < 0)
+		brightness = led_intensity;
+	
 	for (int i = 0; i < count; i++) {
 		// Technically it is possible to disable the led if USBRQ_BRIGHTNESS command sets it to 0
-		analogWrite(PIN_LED, led_intensity);
+		analogWrite(PIN_LED, brightness);
 		DigiUSB.delay(length);
 		analogWrite(PIN_LED, 0);
 
@@ -120,7 +142,7 @@ void blink(int length, int count) {
 }
 
 void trigger_reset() {
-	configured_reset_timeout = 0;
+	configured_reset_timeout_ms = 0;
 
 	for (int i = 0; i < 2; i++) {
 		digitalWrite(PIN_RESET, HIGH);

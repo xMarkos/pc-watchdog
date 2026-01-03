@@ -19,6 +19,7 @@ compile:
 	$(CLI) compile --fqbn $(FQBN) \
 		--libraries $(LIB_PATH) \
 		--output-dir $(BUILD_DIR) \
+		--warnings all \
 		$(SKETCH)
 
 upload: compile
