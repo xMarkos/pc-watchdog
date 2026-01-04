@@ -21,7 +21,11 @@ USB_HID_REPORT_TYPE_FEATURE = 0x03
 
 # Constants used for sending data using the VENDOR protocol (custom commands)
 USBRQ_PING = 1
-USBRQ_SET_BRIGHTNESS = 2
+USBRQ_SET_CONFVAR = 2
+
+# Configuration variable indexes for USBRQ_SET_CONFVAR
+CONFVAR_BRIGHTNESS = 1
+CONFVAR_GRACE_PERIOD = 2
 
 # Constants controlling this program (i.e. configuration)
 PULSE_FREQUENCY_SECONDS = 10
@@ -109,6 +113,15 @@ class WatchdogUsbDevice(object):
 	def send_vendor_command(self, cmd: int, value: int = 0, index: int = 0):
 		self.device.ctrl_transfer(bmRequestType=REQUEST_TYPE_SEND_VENDOR, bRequest=cmd, wValue=value, wIndex=index, data_or_wLength=[])
 
+	def set_confvar(self, confvar: int, value: int):
+		self.send_vendor_command(cmd=USBRQ_SET_CONFVAR, index=confvar, value=value)
+
+	def set_led_brightness(self, value: int):
+		self.set_confvar(CONFVAR_BRIGHTNESS, value)
+
+	def set_grace_period(self, value: int):
+		self.set_confvar(CONFVAR_GRACE_PERIOD, value)
+
 
 device = WatchdogUsbDevice(device_search_args)
 
@@ -119,7 +132,8 @@ try:
 
 		try:
 			device.check_device()
-			device.send_vendor_command(USBRQ_SET_BRIGHTNESS, DEVICE_LED_BRIGHTNESS)
+			device.set_led_brightness(DEVICE_LED_BRIGHTNESS)
+			#device.set_confvar(CONFVAR_GRACE_PERIOD, 30)
 
 			last_pulse = 0
 			last_minutes = ''
