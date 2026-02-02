@@ -40,11 +40,11 @@ The circuit is inspired by the **Digispark (Digistump)**. While the firmware rem
 
 ### Form Factor
 
-* Designed to fit on a **10x10 mm stripboard**.
+* Designed to fit on a **10x10 stripboard**.
 * A **4-pin connector** is soldered to the board for direct connection to the USB header.
 * A separate cable with a **1-pin female DuPont connector** attaches to the motherboard's reset pin.
 
-![PCB schematic](hw/pcb.png)
+![PCB schematic](hardware/pcb.png)
 
 ---
 
