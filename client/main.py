@@ -1,6 +1,7 @@
 import usb.core
 import usb.util
 import time
+import sys
 from typing import Any, cast
 
 device_search_args = {
@@ -124,19 +125,21 @@ class WatchdogUsbDevice(object):
 
 
 device = WatchdogUsbDevice(device_search_args)
+device_announced = False
+last_pulse = 0
+last_minutes = ''
 
 try:
 	while True:
 		device.find_device()
-		print(f'{device=!s}')
+		if not device_announced and device._device is not None:
+			device_announced = True
+			print(f'{device=!s}')
 
 		try:
 			device.check_device()
 			device.set_led_brightness(DEVICE_LED_BRIGHTNESS)
-			#device.set_confvar(CONFVAR_GRACE_PERIOD, 30)
-
-			last_pulse = 0
-			last_minutes = ''
+			#device.set_grace_period(30)
 
 			while True:
 				if len(value := device.read()):
@@ -156,8 +159,9 @@ try:
 
 				time.sleep(0.1)
 		except (usb.core.USBError) as e:
-			print(f'Error: {e}')
-			time.sleep(5)
+			print(f'Error: {e}', file=sys.stderr)
+			print('-', end='', flush=True)
+			time.sleep(1)
 except KeyboardInterrupt:
 	# Important: this does not handle SIGKILL, so we need to make sure that systemd terminates the program with SIGINT
 	try:

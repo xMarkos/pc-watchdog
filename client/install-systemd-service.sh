@@ -31,6 +31,8 @@ User=root
 Group=root
 TimeoutStopSec=5
 KillSignal=SIGINT
+StandardOutput=append:/var/log/watchdog.log
+StandardError=journal
 
 # Wait 5 seconds before attempting a restart
 RestartSec=5
