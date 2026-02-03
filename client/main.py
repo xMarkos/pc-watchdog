@@ -150,12 +150,12 @@ try:
 				now_minutes = now_struct.tm_min // 5 * 5
 
 				if now_minutes != last_minutes:
-					last_minutes = now_minutes
 					print(f'\n[{time.strftime("%H:%M", now_struct)}] ', end='', flush=True)
+					last_minutes = now_minutes
 
 				if now - last_pulse > PULSE_FREQUENCY_SECONDS:
-					last_pulse = now
 					device.send_vendor_command(USBRQ_PING, PULSE_TIMEOUT_SECONDS)
+					last_pulse = now
 
 				time.sleep(0.1)
 		except (usb.core.USBError) as e:
