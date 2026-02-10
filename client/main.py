@@ -32,6 +32,7 @@ CONFVAR_GRACE_PERIOD = 2
 PULSE_FREQUENCY_SECONDS = 10
 PULSE_TIMEOUT_SECONDS = 15
 DEVICE_LED_BRIGHTNESS = 1
+BEACON_LOG_LINE_MINUTES = 15
 
 
 class WatchdogUsbDevice(object):
@@ -147,7 +148,7 @@ try:
 
 				now = time.time()
 				now_struct = time.localtime()
-				now_minutes = now_struct.tm_min // 5 * 5
+				now_minutes = now_struct.tm_min // BEACON_LOG_LINE_MINUTES * BEACON_LOG_LINE_MINUTES
 
 				if now_minutes != last_minutes:
 					print(f'\n[{time.strftime("%H:%M", now_struct)}] ', end='', flush=True)
